@@ -85,6 +85,36 @@ sub get_fh {
     $self->git->command_output_pipe("cat-file", "blob", "$rev:$path");
 }
 
+sub branches {
+    my $self = shift;
+
+    my $output = $self->git->command( 'branch' );
+    $output =~ s/^[ *]+//gm;
+
+    return split "\n" => $output;
+}
+
+sub issue_in_rev {
+    my( $self, $rev, $issue_id ) = @_;
+
+    my $fh = $self->get_fh( $rev, "issues/i_$issue_id.cil" );
+
+    require CIL::Issue;
+    return CIL::Issue->new_from_fh( $issue_id, $fh );
+}
+
+sub checkout {
+    my( $self, $rev ) = @_;
+
+    $self->git->command( 'checkout' => $rev );
+}
+
+sub create_branch {
+    my ( $self, $branch ) = @_;
+
+    $self->git->command( 'branch' => $branch );
+}
+
 ## ----------------------------------------------------------------------------
 1;
 ## ----------------------------------------------------------------------------

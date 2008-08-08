@@ -669,6 +669,76 @@ sub cmd_precedes {
     cmd_depends_on($cil, undef, $depends_name, $issue_name);
 }
 
+sub cmd_work {
+    my ( $cil, undef, $bug_id, $branch ) = @_;
+
+    my $issue = eval { CIL::Issue->new_from_name( $cil, $bug_id ) }
+        or exit msg( "issue '$bug_id' doesn't seem to exist" );
+
+    #TODO can only work on it if it's new or assigned to me?
+
+    if ( $cil->VCS eq 'Git' ) {
+        # branch defined on the command line?
+        if( $branch ) {
+            unless( $branch eq $issue->WorkBranch ) {
+                $issue->WorkBranch( $branch );
+                $issue->save( $cil );
+                $cil->vcs->git->command( 'commit', 
+                    '-m' => "'working branch for $bug_id is $branch'",
+                    $issue->create_filename( $cil, $issue->name ),
+                );
+            }
+        }
+
+        # is the branch already defined?
+        if ( my $b = $issue->WorkBranch ) {
+            $cil->vcs->checkout( $b );
+            exit;
+        }
+
+        # find if there is a branch already working on that bug
+        my %branch = map  { $_ => $cil->vcs->issue_in_rev( $_ => $bug_id ) }
+                     grep { $_ ne 'master' }
+                          $cil->vcs->branches;
+
+        my @branches =  grep { $branch{$_}->Status eq 'InProgress' }
+                        keys %branch;
+
+        if ( @branches > 1 ) {
+            print "issue being worked on in more than one branch: ",
+                  join( ', ' => @branches ), "\n", 
+                  "specify which one to use with -b <branch>\n";
+            exit;
+        }
+
+        if ( @branches == 1 ) {
+            $cil->vcs->checkout( @branches );
+            exit;
+        }
+
+        $branch ||= "issue/$bug_id";
+
+        # the issue's ours, now
+        $issue->AssignedTo( $cil->user_id );
+        $issue->Status( 'InProgress' );
+        $issue->WorkBranch( $branch );
+        $issue->save( $cil );
+
+        my $userid = $cil->user_id;
+        $cil->vcs->git->command( 'commit', 
+            '-m' => "'issue $bug_id claimed by $userid'",
+            $issue->create_filename( $cil, $issue->name ),
+            );
+
+        $cil->vcs->create_branch( $branch ) 
+            unless grep { $_ eq $branch } $cil->vcs->branches;
+        $cil->vcs->checkout( $branch );
+
+
+    }
+
+}
+
 ## ----------------------------------------------------------------------------
 # helpers
 
@@ -693,6 +763,7 @@ sub load_issue_fuzzy {
     return $issue;
 }
 
+
 sub load_comment_fuzzy {
     my ($cil, $partial_name) = @_;
 
@@ -714,6 +785,7 @@ sub load_comment_fuzzy {
     return $comment;
 }
 
+
 sub load_attachment_fuzzy {
     my ($cil, $partial_name) = @_;
 
@@ -734,6 +806,7 @@ sub load_attachment_fuzzy {
 
     return $attachment;
 }
+
 
 sub ans {
     my ($msg) = @_;
@@ -1043,8 +1116,7 @@ sub get_options {
 }
 
 sub msg {
-    print ( defined $_[0] ? $_[0] : '' );
-    print "\n";
+    print @_, "\n";
 }
 
 sub separator {
@@ -1253,6 +1325,26 @@ too.
 
 Tries to help you organise your issues if any aren't valid or have broken
 relationships.
+
+=item work ISSUE [ BRANCH ]
+
+If not already done, assigns the issue to yourself.  If working in
+a VCS environment (right now, only Git is supported), creates
+a working branch for this issue.  Subsequent calls to 'work'
+will bring you back to that branch. 
+                 
+  $ cil work cafebabe         # revendicate issue 
+                              # and create branch issue/cafebabe
+  ... do some work ...
+  $ git checkout other/branch # go work on some other branch
+    ... some more work ...
+  $ cil work cafebabe         # return to cafebabe
+
+The working branch, by default, is called 'issue/<issue_id>'. To tie
+the issue to a different branch, you can specify its name on the command
+line.
+
+  $ cil work cafebabe myBranch  # work on cafebabe in branch myBranch
 
 =back
 
