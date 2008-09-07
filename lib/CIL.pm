@@ -37,7 +37,6 @@ __PACKAGE__->mk_accessors(qw(
     StatusStrict StatusAllowed StatusOpen StatusClosed
     LabelStrict LabelAllowed
     VCS
-    UserName UserEmail
     vcs hook
     vcs_revision
 ));
@@ -91,10 +90,10 @@ sub list_entities {
     my $globpath = $self->IssueDir . "/${prefix}_${base}*.cil";
     my @filenames;
     if ( $self->vcs_revision ) {
-	@filenames = $self->vcs->glob_rev($self->vcs_revision, $globpath);
+        @filenames = $self->vcs->glob_rev($self->vcs_revision, $globpath);
     }
     else {
-	@filenames = bsd_glob($globpath);
+        @filenames = bsd_glob($globpath);
     }
 
     my @entities;
@@ -221,7 +220,7 @@ sub read_config_user {
     }
 
     # set each config to be either the user defined one or the default
-    foreach ( qw(UserName UserEmail) ) {
+    foreach ( qw() ) { # nothing yet
         $self->$_( $cfg->{$_} || $defaults_user->{$_} );
     }
 }
@@ -285,10 +284,10 @@ sub check_args {
     my ($self, $args) = @_;
 
     if ( $args->{r} ) {
-	$self->vcs_revision($args->{r});
-	if ( !$self->VCS or $self->VCS eq "Null" ) {
-	    warn "No VCS set in config file!\n";
-	}
+        $self->vcs_revision($args->{r});
+        if ( !$self->VCS or $self->VCS eq "Null" ) {
+            warn "No VCS set in config file!\n";
+        }
     }
 }
 
@@ -323,10 +322,10 @@ sub run_hook {
 sub file_exists {
     my ($self, $filename) = @_;
     if ( $self->vcs_revision ) {
-	$self->vcs->file_exists($self->vcs_revision, $filename);
+        $self->vcs->file_exists($self->vcs_revision, $filename);
     }
     else {
-	-f $filename;
+        -f $filename;
     }
 }
 
@@ -360,6 +359,19 @@ sub save {
     else {
 	CIL::Utils->write_cil_file( $filename, $data, @fields );
     }
+}
+
+## ----------------------------------------------------------------------------
+# simple delegates to elsewhere
+
+sub UserName {
+    my ($self) = @_;
+    return $self->vcs->UserName
+}
+
+sub UserEmail {
+    my ($self) = @_;
+    return $self->vcs->UserEmail
 }
 
 ## ----------------------------------------------------------------------------

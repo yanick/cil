@@ -148,6 +148,7 @@ sub cmd_init {
     if ( -d '.git' ) {
         msg( 'git repository detected, setting VCS accordingly' );
         $VCSconfig = 'VCS: git';
+        my $vcs = CIL::VCS::Factory->new( 'Git' );
     }
 
     # create a .cil file here also
